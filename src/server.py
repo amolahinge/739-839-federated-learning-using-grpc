@@ -36,37 +36,42 @@ def run():
             stub = federated_pb2_grpc.TrainerStub(channel)
             response = stub.StartTrain(federated_pb2.TrainRequest(name='you',rank=count,world=len(clients)))
             model=base64.b64decode(response.message)
-            f = open("test"+str(count)+".pth",'wb')
+            f = open("test_"+str(count)+".pth",'wb')
             f.write(model)
-       # allreduce()
-        optimmodel="test.pth"
+            f.close()
+        allreduce()
+        optimmodel="optimizedModel.pth"
         f=open(optimmodel, "rb")
         encode=base64.b64encode(f.read())
+        f.close()
         for count,channel in enumerate(channels):
             stub = federated_pb2_grpc.TrainerStub(channel)
             response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
-        f.close()
 
 def allreduce():
     pushedModels = []
-    for i in range(1, 3):
+    for i in range(0, 3):   # TODO - This should be a configurable parameter
         m = MobileNet()
+        print("Filename =", "test_"+str(i)+".pth")
         m.load_state_dict(torch.load("test_"+str(i)+".pth")['net'])
         pushedModels.append(m)
 
-    print("Before summing", pushedModels[0].state_dict())
+    # print("Before summing", pushedModels[0].state_dict())
     optimizedModel = pushedModels[0].state_dict()
     
     for index in range(1, len(pushedModels)):
         m = pushedModels[index].state_dict()
         for key in m:
             optimizedModel[key] = optimizedModel[key] + m[key]
-    print("After summing", optimizedModel)
+    # print("After summing", optimizedModel)
 
     for key in optimizedModel:
         optimizedModel[key] = optimizedModel[key] / len(pushedModels)
 
-    print("After averaging", optimizedModel)
+    # print("After averaging", optimizedModel)
+
+    torch.save(optimizedModel, "optimizedModel.pth")
+
 
 if __name__ == '__main__':
     logging.basicConfig()
