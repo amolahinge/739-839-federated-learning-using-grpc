@@ -12,13 +12,30 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import numpy as np
-
+import threading
 import torchvision
 import torchvision.transforms as transforms
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 from models import *
 
 clients=[]
+
+def trainThreadFunc(count,channel):
+    net = MobileNet()
+    stub = federated_pb2_grpc.TrainerStub(channel)
+    response = stub.StartTrain(federated_pb2.TrainRequest(name='you',rank=count,world=len(clients)))
+    model=base64.b64decode(response.message)
+    f = open("test_"+str(count)+".pth",'wb')
+    f.write(model)
+    f.close()
+
+def sendThreadFunc(count,channel):
+    optimmodel="./checkpoint/ckpt.pth"
+    f=open(optimmodel, "rb")
+    encode=base64.b64encode(f.read())
+    f.close()
+    stub = federated_pb2_grpc.TrainerStub(channel)
+    response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
 
 def run():
     options = [
@@ -28,25 +45,33 @@ def run():
 
     channels=[]
     count=0
+    # threads=[]
     for client in clients:
         channels.append(grpc.insecure_channel(client,options=options))
-    for epoch in range(1):
+    for epoch in range(2):
+        net = MobileNet()
+        trainthreads=[]
         for count,channel in enumerate(channels):
-            net = MobileNet()
-            stub = federated_pb2_grpc.TrainerStub(channel)
-            response = stub.StartTrain(federated_pb2.TrainRequest(name='you',rank=count,world=len(clients)))
-            model=base64.b64decode(response.message)
-            f = open("test_"+str(count)+".pth",'wb')
-            f.write(model)
-            f.close()
+            trainthreads.append(threading.Thread(target=trainThreadFunc, args=(count,channel)))
+        for i in range(len(trainthreads)):
+            trainthreads[i].start()
+        for i in range (len(trainthreads)):
+            trainthreads[i].join()
         allreduce()
         optimmodel="optimizedModel.pth"
-        f=open(optimmodel, "rb")
-        encode=base64.b64encode(f.read())
-        f.close()
+        checkpoint = torch.load('./checkpoint/ckpt.pth')
+        net.load_state_dict(checkpoint['net'])
+        optimmodel="./checkpoint/ckpt.pth"
+
+        # checkpoint = torch.load('optimizedModel.pth')
+        # net.load_state_dict(checkpoint['net'])
+        sendThreads=[]
         for count,channel in enumerate(channels):
-            stub = federated_pb2_grpc.TrainerStub(channel)
-            response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
+            sendThreads.append(threading.Thread(target=sendThreadFunc, args=(count,channel)))
+        for i in range(len(sendThreads)):
+            sendThreads[i].start()
+        for i in range (len(sendThreads)):
+            sendThreads[i].join()
 
 def allreduce():
     pushedModels = []
@@ -70,10 +95,12 @@ def allreduce():
 
     # print("After averaging", optimizedModel)
 
-    torch.save(optimizedModel, "optimizedModel.pth")
+    torch.save(pushedModels[0], "optimizedModel.pth")
 
 
 if __name__ == '__main__':
     logging.basicConfig()
     clients.append('localhost:50051')
+    #clients.append('localhost:50052')
+
     run()

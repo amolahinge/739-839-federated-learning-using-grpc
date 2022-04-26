@@ -22,6 +22,7 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
         decode=base64.b64decode(request.model)
         f.write(decode)
         f.close()
+        main.test(1,1)
         return federated_pb2.SendModelReply(reply="success")
 
 
