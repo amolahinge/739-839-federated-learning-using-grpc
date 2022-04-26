@@ -3,8 +3,8 @@ from __future__ import print_function
 import logging
 
 import grpc
-import helloworld_pb2
-import helloworld_pb2_grpc
+import federated_pb2
+import federated_pb2_grpc
 import base64
 import torch
 import torch.nn as nn
@@ -33,8 +33,8 @@ def run():
     for epoch in range(1):
         for count,channel in enumerate(channels):
             net = MobileNet()
-            stub = helloworld_pb2_grpc.GreeterStub(channel)
-            response = stub.SayHello(helloworld_pb2.HelloRequest(name='you',rank=count,world=len(clients)))
+            stub = federated_pb2_grpc.TrainerStub(channel)
+            response = stub.StartTrain(federated_pb2.TrainRequest(name='you',rank=count,world=len(clients)))
             model=base64.b64decode(response.message)
             f = open("test"+str(count)+".pth",'wb')
             f.write(model)
@@ -43,8 +43,8 @@ def run():
         f=open(optimmodel, "rb")
         encode=base64.b64encode(f.read())
         for count,channel in enumerate(channels):
-            stub = helloworld_pb2_grpc.GreeterStub(channel)
-            response = stub.SendModel(helloworld_pb2.SendModelRequest(model=encode))
+            stub = federated_pb2_grpc.TrainerStub(channel)
+            response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
         f.close()
 
 def allreduce():
