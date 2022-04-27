@@ -114,6 +114,6 @@ if __name__ == '__main__':
     print("Compression {} enabled".format(args.compressFlag))
 
     clients.append('localhost:50051')
-    #clients.append('localhost:50052')
+    clients.append('localhost:50052')
 
     run()
