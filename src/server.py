@@ -71,7 +71,7 @@ def run():
 
 def allreduce():
     pushedModels = []
-    for i in range(0, 2):
+    for i in range(0, len(clients)):
         m = MobileNet()
         m.load_state_dict(torch.load("test_"+str(i)+".pth")['net'])
         pushedModels.append(m)
