@@ -1,6 +1,7 @@
 
 from concurrent import futures
 import logging
+import argparse
 
 import grpc
 import federated_pb2
@@ -8,6 +9,7 @@ import federated_pb2_grpc
 import main
 import base64
 
+compressFlag = False
 
 class Trainer(federated_pb2_grpc.TrainerServicer):
     def StartTrain(self, request, context):
@@ -28,10 +30,16 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),options = [
-        ('grpc.max_send_message_length', 1024 * 1024 * 1024),
-        ('grpc.max_receive_message_length', 1024 * 1024 * 1024)
-    ])
+    if compressFlag:
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),options = [
+            ('grpc.max_send_message_length', 1024 * 1024 * 1024),
+            ('grpc.max_receive_message_length', 1024 * 1024 * 1024)
+        ], compression=grpc.Compression.Gzip)
+    else:
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),options = [
+            ('grpc.max_send_message_length', 1024 * 1024 * 1024),
+            ('grpc.max_receive_message_length', 1024 * 1024 * 1024)
+        ])
     federated_pb2_grpc.add_TrainerServicer_to_server(Trainer(), server)
     server.add_insecure_port('[::]:50051')
     server.start()
@@ -39,5 +47,13 @@ def serve():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--compressFlag", help="Compression enabled/disabled")
+
+    args = parser.parse_args()
+    if args.compressFlag == "Y": 
+        compressFlag = True
+        
+    print("Compression {} enabled".format(args.compressFlag))
     logging.basicConfig()
     serve()

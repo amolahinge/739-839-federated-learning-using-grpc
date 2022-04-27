@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import logging
+import argparse
 
 import grpc
 import federated_pb2
@@ -19,6 +20,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 from models import *
 
 clients=[]
+compressFlag = False
 
 def trainThreadFunc(count,channel):
     net = MobileNet()
@@ -47,7 +49,10 @@ def run():
     count=0
     # threads=[]
     for client in clients:
-        channels.append(grpc.insecure_channel(client,options=options))
+        if compressFlag:
+            channels.append(grpc.insecure_channel(client,options=options,compression=grpc.Compression.Gzip))
+        else:
+            channels.append(grpc.insecure_channel(client,options=options))
     for epoch in range(2):
         net = MobileNet()
         trainthreads=[]
@@ -57,7 +62,7 @@ def run():
             trainthreads[i].start()
         for i in range (len(trainthreads)):
             trainthreads[i].join()
-        allreduce()
+        #allreduce()
         optimmodel="optimizedModel.pth"
         checkpoint = torch.load('./checkpoint/ckpt.pth')
         net.load_state_dict(checkpoint['net'])
@@ -100,6 +105,15 @@ def allreduce():
 
 if __name__ == '__main__':
     logging.basicConfig()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--compressFlag", help="Compression enabled/disabled")
+
+    args = parser.parse_args()
+    if args.compressFlag == "Y": 
+        compressFlag = True
+        
+    print("Compression {} enabled".format(args.compressFlag))
+
     clients.append('localhost:50051')
     #clients.append('localhost:50052')
 
