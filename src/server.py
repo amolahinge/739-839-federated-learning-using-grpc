@@ -21,6 +21,7 @@ from models import *
 
 clients=[]
 compressFlag = False
+optimModelPath = "optimizedModel.pth"
 
 def trainThreadFunc(count,channel):
     net = MobileNet()
@@ -32,8 +33,8 @@ def trainThreadFunc(count,channel):
     f.close()
 
 def sendThreadFunc(count,channel):
-    optimmodel="./checkpoint/ckpt.pth"
-    f=open(optimmodel, "rb")
+    
+    f=open(optimModelPath, "rb")
     encode=base64.b64encode(f.read())
     f.close()
     stub = federated_pb2_grpc.TrainerStub(channel)
@@ -62,14 +63,8 @@ def run():
             trainthreads[i].start()
         for i in range (len(trainthreads)):
             trainthreads[i].join()
-        #allreduce()
-        optimmodel="optimizedModel.pth"
-        checkpoint = torch.load('./checkpoint/ckpt.pth')
-        net.load_state_dict(checkpoint['net'])
-        optimmodel="./checkpoint/ckpt.pth"
-
-        # checkpoint = torch.load('optimizedModel.pth')
-        # net.load_state_dict(checkpoint['net'])
+        allreduce()
+        
         sendThreads=[]
         for count,channel in enumerate(channels):
             sendThreads.append(threading.Thread(target=sendThreadFunc, args=(count,channel)))
@@ -80,9 +75,8 @@ def run():
 
 def allreduce():
     pushedModels = []
-    for i in range(0, 3):   # TODO - This should be a configurable parameter
+    for i in range(0, len(clients)):
         m = MobileNet()
-        print("Filename =", "test_"+str(i)+".pth")
         m.load_state_dict(torch.load("test_"+str(i)+".pth")['net'])
         pushedModels.append(m)
 
@@ -100,7 +94,12 @@ def allreduce():
 
     # print("After averaging", optimizedModel)
 
-    torch.save(pushedModels[0], "optimizedModel.pth")
+    state = {
+        'net': optimizedModel,
+        'acc': 1,
+        'epoch': 1,
+    }
+    torch.save(state, optimModelPath)
 
 
 if __name__ == '__main__':
