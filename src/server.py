@@ -130,6 +130,7 @@ def pingBackupServer():
     while(1):
         try:
             print("Recovering", recovering)
+            #this call is being used by backup to identify if primary is up or not
             response = stub.CheckIfPrimaryUp(federated_pb2.PingRequest(req = str(recovering)))
             recovering = 0
         except Exception:
@@ -193,7 +194,7 @@ def CheckingIfPrimaryServerUp():
     while(flag):
         if isPrimaryUp == 1:
             isPrimaryUp = 0
-            time.sleep(5)
+            time.sleep(10)
         else:
             print("Got to know primary server is down")
             os.kill(os.getpid(), signal.SIGUSR1)
