@@ -42,8 +42,8 @@ def trainThreadFunc(count, client, channel):
         f.close()
     except grpc.RpcError as e:
         status_code = e.code()
-        if grpc.StatusCode.UNAVAILABLE == status_code:
-            clients[client] = False
+        #if grpc.StatusCode.UNAVAILABLE == status_code:
+        clients[client] = False
 
 def sendThreadFunc(count,client, channel):
     
@@ -55,8 +55,8 @@ def sendThreadFunc(count,client, channel):
         response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
     except grpc.RpcError as e:
         status_code = e.code()
-        if grpc.StatusCode.UNAVAILABLE == status_code:
-            clients[client] = False            
+        #if grpc.StatusCode.UNAVAILABLE == status_code:
+        clients[client] = False            
             #del channels[client] 
 
 def checkClientStatus():

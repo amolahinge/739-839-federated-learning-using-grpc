@@ -31,7 +31,7 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
         return federated_pb2.SendModelReply(reply="success")
 
     def HeartBeat(self, request, context):
-        print("here")
+        #print("here")
         return federated_pb2.HeartBeatResponse(status=1)
 
 

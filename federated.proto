@@ -22,7 +22,6 @@ option objc_class_prefix = "HLW";
 package federated;
 
 service Trainer {
-  // Sends a greeting
   rpc StartTrain (TrainRequest) returns (TrainReply) {}
   rpc SendModel(SendModelRequest) returns (SendModelReply){}
   rpc HeartBeat(Request) returns (HeartBeatResponse) {}
