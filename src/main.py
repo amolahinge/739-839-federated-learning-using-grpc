@@ -21,6 +21,10 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
+parser.add_argument("-c", "--compressFlag", help="Compression enabled/disabled")
+parser.add_argument("-a", "--address", help="Listener port")
+
+
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -76,11 +80,17 @@ if device == 'cuda':
     net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
+fileName = "temp"
+if args.address:
+    fileName = args.address
+
 if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    filePath = "./checkpoint/" + fileName + ".pth"
+    #checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load(filePath)
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
@@ -89,7 +99,6 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-
 
 # Training
 @dispatch(int)
@@ -118,7 +127,10 @@ def train(epoch):
 # Training
 @dispatch(int,int,int)
 def train(epoch,rank,world):
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    filePath = "./checkpoint/" + fileName + ".pth"
+    #checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load(filePath)
+    #checkpoint = torch.load('./checkpoint/ckpt.pth')
     net.load_state_dict(checkpoint['net'])
     print('\nEpoch: %d' % epoch)
     net.train()
@@ -150,12 +162,15 @@ def train(epoch,rank,world):
         'acc': 1,
         'epoch': epoch,
     }
-    torch.save(state, './checkpoint/ckpt.pth')
+    torch.save(state, filePath)
 
 @dispatch(int,int)
 def test(epoch,count):
     global best_acc
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    filePath = "./checkpoint/" + fileName + ".pth"
+    #checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load(filePath)
+
     net.load_state_dict(checkpoint['net'])
     net.eval()
     test_loss = 0
@@ -207,7 +222,9 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.pth')
+        filePath = "./checkpoint/" + fileName + ".pth"
+    
+        torch.save(state, filePath)
         best_acc = acc
 
 
