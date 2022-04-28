@@ -25,6 +25,7 @@ service Trainer {
   rpc StartTrain (TrainRequest) returns (TrainReply) {}
   rpc SendModel(SendModelRequest) returns (SendModelReply){}
   rpc HeartBeat(Request) returns (HeartBeatResponse) {}
+  rpc CheckIfPrimaryUp(PingRequest) returns (PingResponse) {}
 }
 
 message Request {}
@@ -51,4 +52,12 @@ message SendModelRequest{
 
 message SendModelReply{
   string reply=1;
+}
+
+message PingRequest{
+  string req = 1;
+}
+
+message PingResponse {
+  int32 value = 1;
 }

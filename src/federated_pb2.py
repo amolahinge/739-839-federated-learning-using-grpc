@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x66\x65\x64\x65rated.proto\x12\tfederated\"\t\n\x07Request\"#\n\x11HeartBeatResponse\x12\x0e\n\x06status\x18\x01 \x01(\x05\"+\n\x0cTrainRequest\x12\x0c\n\x04rank\x18\x01 \x01(\x05\x12\r\n\x05world\x18\x02 \x01(\x05\"\x1d\n\nTrainReply\x12\x0f\n\x07message\x18\x01 \x01(\t\"!\n\x10SendModelRequest\x12\r\n\x05model\x18\x01 \x01(\t\"\x1f\n\x0eSendModelReply\x12\r\n\x05reply\x18\x01 \x01(\t2\xd1\x01\n\x07Trainer\x12>\n\nStartTrain\x12\x17.federated.TrainRequest\x1a\x15.federated.TrainReply\"\x00\x12\x45\n\tSendModel\x12\x1b.federated.SendModelRequest\x1a\x19.federated.SendModelReply\"\x00\x12?\n\tHeartBeat\x12\x12.federated.Request\x1a\x1c.federated.HeartBeatResponse\"\x00\x42\x34\n\x1aio.grpc.examples.federatedB\x0e\x46\x65\x64\x65ratedProtoP\x01\xa2\x02\x03HLWb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x66\x65\x64\x65rated.proto\x12\tfederated\"\t\n\x07Request\"#\n\x11HeartBeatResponse\x12\x0e\n\x06status\x18\x01 \x01(\x05\"+\n\x0cTrainRequest\x12\x0c\n\x04rank\x18\x01 \x01(\x05\x12\r\n\x05world\x18\x02 \x01(\x05\"\x1d\n\nTrainReply\x12\x0f\n\x07message\x18\x01 \x01(\t\"!\n\x10SendModelRequest\x12\r\n\x05model\x18\x01 \x01(\t\"\x1f\n\x0eSendModelReply\x12\r\n\x05reply\x18\x01 \x01(\t\"\x1a\n\x0bPingRequest\x12\x0b\n\x03req\x18\x01 \x01(\t\"\x1d\n\x0cPingResponse\x12\r\n\x05value\x18\x01 \x01(\x05\x32\x98\x02\n\x07Trainer\x12>\n\nStartTrain\x12\x17.federated.TrainRequest\x1a\x15.federated.TrainReply\"\x00\x12\x45\n\tSendModel\x12\x1b.federated.SendModelRequest\x1a\x19.federated.SendModelReply\"\x00\x12?\n\tHeartBeat\x12\x12.federated.Request\x1a\x1c.federated.HeartBeatResponse\"\x00\x12\x45\n\x10\x43heckIfPrimaryUp\x12\x16.federated.PingRequest\x1a\x17.federated.PingResponse\"\x00\x42\x34\n\x1aio.grpc.examples.federatedB\x0e\x46\x65\x64\x65ratedProtoP\x01\xa2\x02\x03HLWb\x06proto3')
 
 
 
@@ -24,6 +24,8 @@ _TRAINREQUEST = DESCRIPTOR.message_types_by_name['TrainRequest']
 _TRAINREPLY = DESCRIPTOR.message_types_by_name['TrainReply']
 _SENDMODELREQUEST = DESCRIPTOR.message_types_by_name['SendModelRequest']
 _SENDMODELREPLY = DESCRIPTOR.message_types_by_name['SendModelReply']
+_PINGREQUEST = DESCRIPTOR.message_types_by_name['PingRequest']
+_PINGRESPONSE = DESCRIPTOR.message_types_by_name['PingResponse']
 Request = _reflection.GeneratedProtocolMessageType('Request', (_message.Message,), {
   'DESCRIPTOR' : _REQUEST,
   '__module__' : 'federated_pb2'
@@ -66,6 +68,20 @@ SendModelReply = _reflection.GeneratedProtocolMessageType('SendModelReply', (_me
   })
 _sym_db.RegisterMessage(SendModelReply)
 
+PingRequest = _reflection.GeneratedProtocolMessageType('PingRequest', (_message.Message,), {
+  'DESCRIPTOR' : _PINGREQUEST,
+  '__module__' : 'federated_pb2'
+  # @@protoc_insertion_point(class_scope:federated.PingRequest)
+  })
+_sym_db.RegisterMessage(PingRequest)
+
+PingResponse = _reflection.GeneratedProtocolMessageType('PingResponse', (_message.Message,), {
+  'DESCRIPTOR' : _PINGRESPONSE,
+  '__module__' : 'federated_pb2'
+  # @@protoc_insertion_point(class_scope:federated.PingResponse)
+  })
+_sym_db.RegisterMessage(PingResponse)
+
 _TRAINER = DESCRIPTOR.services_by_name['Trainer']
 if _descriptor._USE_C_DESCRIPTORS == False:
 
@@ -83,6 +99,10 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _SENDMODELREQUEST._serialized_end=187
   _SENDMODELREPLY._serialized_start=189
   _SENDMODELREPLY._serialized_end=220
-  _TRAINER._serialized_start=223
-  _TRAINER._serialized_end=432
+  _PINGREQUEST._serialized_start=222
+  _PINGREQUEST._serialized_end=248
+  _PINGRESPONSE._serialized_start=250
+  _PINGRESPONSE._serialized_end=279
+  _TRAINER._serialized_start=282
+  _TRAINER._serialized_end=562
 # @@protoc_insertion_point(module_scope)
