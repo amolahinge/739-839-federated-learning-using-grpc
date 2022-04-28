@@ -3,6 +3,10 @@
 python3 -m grpc_tools.protoc -I../../739-839-federated-learning-using-grpc --python_out=. --grpc_python_out=. ../../739-839-federated-learning-using-grpc/federated.proto
 
 
+To start the systems, we need to start primary, backup and clients
+`python3 server.py --p y
+python3 server.py'
+
 For enabling compression, run both client and server with -c Y
 `python3 client.py -c Y
 python3 server.py -c Y`
