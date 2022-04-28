@@ -119,13 +119,13 @@ def allreduce():
 
 #######################################################################
 # Functions related to Backup server only
-def serve():
+def serve(port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),options = [
         ('grpc.max_send_message_length', 1024 * 1024 * 1024),
         ('grpc.max_receive_message_length', 1024 * 1024 * 1024)
     ])
     federated_pb2_grpc.add_TrainerServicer_to_server(Trainer(), server)
-    server.add_insecure_port('[::]:8080')
+    server.add_insecure_port('[::]:' + port)
     server.start()
     server.wait_for_termination()
 
@@ -144,6 +144,9 @@ if __name__ == '__main__':
     logging.basicConfig()
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--compressFlag", help="Compression enabled/disabled")
+    parser.add_argument('--p', default='n', help='Is Primary?')
+    parser.add_argument('--backupAddress', default='localhost', help='Backup Server address')
+    parser.add_argument('--backupPort', default='8080', help='Backup Server Port')
 
     args = parser.parse_args()
     if args.compressFlag == "Y": 
@@ -152,17 +155,11 @@ if __name__ == '__main__':
     print("Compression {} enabled".format(args.compressFlag))
 
     clients.append('localhost:50051')
-    clients.append('localhost:50052')
-
-    parser = argparse.ArgumentParser(description='Server Information')
-    parser.add_argument('--p', default='n', help='Is Primary?')
-    parser.add_argument('--altAddress', default='', help='Backup Server address')
-    parser.add_argument('--port', default='', help='Port')
-    args = parser.parse_args()
+    #clients.append('localhost:50052')
 
     if args.p == 'y':
         print("Primary triggered")
-        ConnectToBackupServer(args.altAddress, args.port)
+        ConnectToBackupServer(args.backupAddress, args.backupPort)
         mountPoint = "Primary"
         Path(mountPoint).mkdir(parents=True, exist_ok=True)
         run()
@@ -170,5 +167,5 @@ if __name__ == '__main__':
         print("Backup triggered")
         mountPoint = "Backup"
         Path(mountPoint).mkdir(parents=True, exist_ok=True)
-        serve()
+        serve(args.backupPort)
 
