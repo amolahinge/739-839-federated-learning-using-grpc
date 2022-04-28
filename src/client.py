@@ -30,6 +30,9 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
         main.test(1,1)
         return federated_pb2.SendModelReply(reply="success")
 
+    def HeartBeat(self, request, context):
+        #print("here")
+        return federated_pb2.HeartBeatResponse(status=1)
 
 
 def serve():
@@ -53,6 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--compressFlag", help="Compression enabled/disabled")
     parser.add_argument("-a", "--address", help="Listener port")
+    parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 
     args = parser.parse_args()
     if args.compressFlag == "Y": 

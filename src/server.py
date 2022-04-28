@@ -3,6 +3,8 @@ from inspect import getmembers
 
 import logging
 import argparse
+import time
+import copy
 
 from concurrent import futures
 import argparse
@@ -25,13 +27,16 @@ from models import *
 import time
 import os, signal
 
-clients=[]
+
+channels={} #client - client channel
+clients={} # client - active / inactive status
 compressFlag = False
 optimModelPath = "optimizedModel.pth"
 backupServerChannel = None
 isPrimaryUp = 1
 isRunningAsPrimaryServer = 0
 recovering = 1
+clientTracking = None
 
 isPrimary = True
 options = [
@@ -42,36 +47,88 @@ options = [
 def getMountedPath(suffixPath):
     return mountPoint + '/'+ suffixPath
 
-def trainThreadFunc(count,channel):
-    net = MobileNet()
-    stub = federated_pb2_grpc.TrainerStub(channel)
-    response = stub.StartTrain(federated_pb2.TrainRequest(name='you',rank=count,world=len(clients)))
-    model=base64.b64decode(response.message)
-    f = open(getMountedPath("test_"+str(count)+".pth"),'wb')
-    f.write(model)
-    f.close()
 
-def sendOptimizedModel(channel):        # TODO - With optimized model send epoch no. to server if want to resume
+def trainThreadFunc(count, client, channel):
+    stub = federated_pb2_grpc.TrainerStub(channel)
+    try:
+        response = stub.StartTrain(federated_pb2.TrainRequest(rank=count,world=len(clients)))
+        model=base64.b64decode(response.message)
+        f = open(getMountedPath("test_"+str(count)+".pth"),'wb')
+        f.write(model)
+        f.close()
+    except grpc.RpcError as e:
+        status_code = e.code()
+        #if grpc.StatusCode.UNAVAILABLE == status_code:
+        clients[client] = False
+
+def sendOptimizedModel(client, channel):        # TODO - With optimized model send epoch no. to server if want to resume
+    
     f=open(getMountedPath(optimModelPath), "rb")
     encode=base64.b64encode(f.read())
     f.close()
-    stub = federated_pb2_grpc.TrainerStub(channel)
-    response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
+    try:
+        stub = federated_pb2_grpc.TrainerStub(channel)
+        response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
+    except grpc.RpcError as e:
+        status_code = e.code()
+        #if grpc.StatusCode.UNAVAILABLE == status_code:
+        clients[client] = False            
+            #del channels[client] 
+
+def checkClientStatus():
+    #logic to check if we are able to re-establish connection with client
+    while(True):
+        time.sleep(1)
+        clients_copy = copy.copy(clients)
+        for key in clients_copy.keys():
+            #iterate over inactive clients only
+            if not clients_copy[key]:
+                try:
+                    #creating new channel here
+                    channel = createChannel(key)
+                    stub = federated_pb2_grpc.TrainerStub(channel)
+                    response = stub.HeartBeat(federated_pb2.Request())
+                    #if there is no error here
+                    if response.status == 1:
+                        clients[key] = True
+                        channels[key] = channel
+                        #send updated model again
+                        print("Sending updated model with count value", list(clients_copy.keys()).index(key))
+                        sendOptimizedModel(key,channel)
+                except grpc.RpcError as e:
+                    status_code = e.code()
+                    #print("GRPC Error", status_code)
+        print("Client status", clients)
+
+def createChannel(client):
+    if compressFlag:
+        return grpc.insecure_channel(client,options=options,compression=grpc.Compression.Gzip)
+    else:
+        return grpc.insecure_channel(client,options=options)
+
+def init():
+    for client in clients.keys():
+        channels[client] = createChannel(client)
 
 def run():
-    channels=[]
-    count=0
-    # threads=[]
-    for client in clients:
-        if compressFlag:
-            channels.append(grpc.insecure_channel(client,options=options,compression=grpc.Compression.Gzip))
-        else:
-            channels.append(grpc.insecure_channel(client,options=options))
-    for epoch in range(4):
-        net = MobileNet()
+    init()
+    #fault tolerance
+    global clientTracking
+    clientTracking = threading.Thread(target=checkClientStatus)
+    clientTracking.start()
+
+    for epoch in range(20):
+        print("Starting epoch", epoch)
+        count=0
+        # threads=[]        
         trainthreads=[]
-        for count,channel in enumerate(channels):
-            trainthreads.append(threading.Thread(target=trainThreadFunc, args=(count,channel)))
+        #print(len(channels))
+        for client,channel in channels.items():
+            if clients[client]:
+                trainthreads.append(threading.Thread(target=trainThreadFunc, args=(count,client,channel)))
+                count = count + 1
+        print("Train thread count", count)
+
         for i in range(len(trainthreads)):
             trainthreads[i].start()
         for i in range (len(trainthreads)):
@@ -79,10 +136,17 @@ def run():
         allreduce()
         
         sendThreads=[]
+
+        count = 0
         if backupServerChannel is not None:
-            sendOptimizedModel(backupServerChannel)
-        for count,channel in enumerate(channels):
-            sendThreads.append(threading.Thread(target=sendOptimizedModel, args=(channel,)))
+            sendOptimizedModel(None, backupServerChannel)
+
+        for client,channel in channels.items():
+            if clients[client]:
+                sendThreads.append(threading.Thread(target=sendOptimizedModel, args=(client, channel)))
+                count = count + 1
+        print("Send updated model thread count", count)
+
         for i in range(len(sendThreads)):
             sendThreads[i].start()
         for i in range (len(sendThreads)):
@@ -96,19 +160,16 @@ def allreduce():
         m.load_state_dict(torch.load(path)['net'])
         pushedModels.append(m)
 
-    # print("Before summing", pushedModels[0].state_dict())
     optimizedModel = pushedModels[0].state_dict()
     
     for index in range(1, len(pushedModels)):
         m = pushedModels[index].state_dict()
         for key in m:
             optimizedModel[key] = optimizedModel[key] + m[key]
-    # print("After summing", optimizedModel)
 
     for key in optimizedModel:
         optimizedModel[key] = optimizedModel[key] / len(pushedModels)
 
-    # print("After averaging", optimizedModel)
 
     state = {
         'net': optimizedModel,
@@ -165,6 +226,8 @@ def handler(signum, frame):
     else:
         print("Start running as Backup server")
         isRunningAsPrimaryServer = 0
+        if clientTracking is not None:
+            clientTracking.terminate()
         t = threading.Thread(target = CheckingIfPrimaryServerUp)
         t.start()
         serve(args.backupPort)
@@ -212,12 +275,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     if args.compressFlag == "Y": 
-        compressFlag = True
-        
+        compressFlag = True        
     print("Compression {} enabled".format(args.compressFlag))
-
-    clients.append('localhost:50051')
-    #clients.append('localhost:50052')
+    
+    clients['localhost:50051'] = True
+    clients['localhost:50052'] = True
+    #clients.append('localhost:50053')
+    #clients.append('localhost:50054')
 
     if args.p == 'y':
         print("Primary triggered")
