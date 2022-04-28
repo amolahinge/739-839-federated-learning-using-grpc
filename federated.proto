@@ -25,13 +25,20 @@ service Trainer {
   // Sends a greeting
   rpc StartTrain (TrainRequest) returns (TrainReply) {}
   rpc SendModel(SendModelRequest) returns (SendModelReply){}
+  rpc HeartBeat(Request) returns (HeartBeatResponse) {}
+}
+
+message Request {}
+
+message HeartBeatResponse
+{
+    int32 status = 1;
 }
 
 // The request message containing the user's name.
 message TrainRequest {
-  string name = 1;
-  int32 rank=2;
-  int32 world=3;
+  int32 rank=1;
+  int32 world=2;
 }
 
 // The response message containing the greetings
