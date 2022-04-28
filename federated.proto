@@ -25,6 +25,7 @@ service Trainer {
   // Sends a greeting
   rpc StartTrain (TrainRequest) returns (TrainReply) {}
   rpc SendModel(SendModelRequest) returns (SendModelReply){}
+  rpc CheckIfPrimaryUp(PingRequest) returns (PingResponse) {}
 }
 
 // The request message containing the user's name.
@@ -45,4 +46,12 @@ message SendModelRequest{
 
 message SendModelReply{
   string reply=1;
+}
+
+message PingRequest{
+  string req = 1;
+}
+
+message PingResponse {
+  int32 value = 1;
 }

@@ -24,6 +24,11 @@ class TrainerStub(object):
                 request_serializer=federated__pb2.SendModelRequest.SerializeToString,
                 response_deserializer=federated__pb2.SendModelReply.FromString,
                 )
+        self.CheckIfPrimaryUp = channel.unary_unary(
+                '/federated.Trainer/CheckIfPrimaryUp',
+                request_serializer=federated__pb2.PingRequest.SerializeToString,
+                response_deserializer=federated__pb2.PingResponse.FromString,
+                )
 
 
 class TrainerServicer(object):
@@ -42,6 +47,12 @@ class TrainerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CheckIfPrimaryUp(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_TrainerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -54,6 +65,11 @@ def add_TrainerServicer_to_server(servicer, server):
                     servicer.SendModel,
                     request_deserializer=federated__pb2.SendModelRequest.FromString,
                     response_serializer=federated__pb2.SendModelReply.SerializeToString,
+            ),
+            'CheckIfPrimaryUp': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckIfPrimaryUp,
+                    request_deserializer=federated__pb2.PingRequest.FromString,
+                    response_serializer=federated__pb2.PingResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -96,5 +112,22 @@ class Trainer(object):
         return grpc.experimental.unary_unary(request, target, '/federated.Trainer/SendModel',
             federated__pb2.SendModelRequest.SerializeToString,
             federated__pb2.SendModelReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CheckIfPrimaryUp(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/federated.Trainer/CheckIfPrimaryUp',
+            federated__pb2.PingRequest.SerializeToString,
+            federated__pb2.PingResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
