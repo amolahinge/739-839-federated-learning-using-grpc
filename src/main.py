@@ -229,6 +229,14 @@ def test(epoch):
 
 
 for epoch in range(start_epoch, start_epoch+1):
-    train(epoch)
-    test(epoch)
-    scheduler.step()
+    filePath = "./checkpoint/" + fileName + ".pth"
+
+    state = {
+        'net': net.state_dict(),
+        'acc': 1,
+        'epoch': epoch,
+    }
+    torch.save(state, filePath)
+    # train(epoch)
+    # test(epoch)
+    # scheduler.step()
