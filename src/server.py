@@ -32,10 +32,11 @@ channels={} #client - client channel
 clients={} # client - active / inactive status
 compressFlag = False
 optimModelPath = "optimizedModel.pth"
+currentEpochPath = "currentEpoch.txt"
 backupServerChannel = None
 isPrimaryUp = 1
 isRunningAsPrimaryServer = 0
-recovering = 1
+recovering = 0
 clientTracking = None
 
 isPrimary = True
@@ -47,11 +48,24 @@ options = [
 def getMountedPath(suffixPath):
     return mountPoint + '/'+ suffixPath
 
+def writeIntegerToFile(number):
+    with open(getMountedPath(currentEpochPath), 'w') as f:
+        f.write('%d' % number)
 
-def trainThreadFunc(count, client, channel):
+def readIntegerFromFile():
+    my_file = Path(getMountedPath(currentEpochPath))
+    if not my_file.is_file():
+        return 1
+    f = open(getMountedPath(currentEpochPath), 'r')
+    currIndex = f.readline()
+    f.close()
+    return int(currIndex) + 1
+
+
+def trainThreadFunc(epoch, count, client, channel):
     stub = federated_pb2_grpc.TrainerStub(channel)
     try:
-        response = stub.StartTrain(federated_pb2.TrainRequest(rank=count,world=len(clients)))
+        response = stub.StartTrain(federated_pb2.TrainRequest(epoch = epoch, rank=count,world=len(clients)))
         model=base64.b64decode(response.message)
         f = open(getMountedPath("test_"+str(count)+".pth"),'wb')
         f.write(model)
@@ -61,14 +75,14 @@ def trainThreadFunc(count, client, channel):
         #if grpc.StatusCode.UNAVAILABLE == status_code:
         clients[client] = False
 
-def sendOptimizedModel(client, channel):        # TODO - With optimized model send epoch no. to server if want to resume
-    
+def sendOptimizedModel(epoch, client, channel):        # TODO - With optimized model send epoch no. to server if want to resume
+
     f=open(getMountedPath(optimModelPath), "rb")
     encode=base64.b64encode(f.read())
     f.close()
     try:
         stub = federated_pb2_grpc.TrainerStub(channel)
-        response = stub.SendModel(federated_pb2.SendModelRequest(model=encode))
+        response = stub.SendModel(federated_pb2.SendModelRequest(model = encode, epoch = epoch))
     except grpc.RpcError as e:
         status_code = e.code()
         #if grpc.StatusCode.UNAVAILABLE == status_code:
@@ -94,7 +108,7 @@ def checkClientStatus():
                         channels[key] = channel
                         #send updated model again
                         print("Sending updated model with count value", list(clients_copy.keys()).index(key))
-                        sendOptimizedModel(key,channel)
+                        sendOptimizedModel(0, key,channel)  # Sending dummy value for epoch. For client, epoch no. used from train
                 except grpc.RpcError as e:
                     status_code = e.code()
                     #print("GRPC Error", status_code)
@@ -110,14 +124,14 @@ def init():
     for client in clients.keys():
         channels[client] = createChannel(client)
 
-def run():
+def run(initial):
     init()
     #fault tolerance
     global clientTracking
     clientTracking = threading.Thread(target=checkClientStatus)
     clientTracking.start()
 
-    for epoch in range(20):
+    for epoch in range(initial, 20):
         print("Starting epoch", epoch)
         count=0
         # threads=[]        
@@ -125,7 +139,7 @@ def run():
         #print(len(channels))
         for client,channel in channels.items():
             if clients[client]:
-                trainthreads.append(threading.Thread(target=trainThreadFunc, args=(count,client,channel)))
+                trainthreads.append(threading.Thread(target=trainThreadFunc, args=(epoch, count, client, channel)))
                 count = count + 1
         print("Train thread count", count)
 
@@ -139,13 +153,16 @@ def run():
 
         count = 0
         if backupServerChannel is not None:
-            sendOptimizedModel(None, backupServerChannel)
+            sendOptimizedModel(epoch, None, backupServerChannel)
+        
 
         for client,channel in channels.items():
             if clients[client]:
-                sendThreads.append(threading.Thread(target=sendOptimizedModel, args=(client, channel)))
+                sendThreads.append(threading.Thread(target=sendOptimizedModel, args=(epoch, client, channel)))
                 count = count + 1
         print("Send updated model thread count", count)
+
+        writeIntegerToFile(epoch)
 
         for i in range(len(sendThreads)):
             sendThreads[i].start()
@@ -185,18 +202,30 @@ def ConnectToBackupServer(altaddress, port):
     global backupServerChannel
     backupServerChannel = grpc.insecure_channel(addr, options=options)
 
-def pingBackupServer():
+def fetchingModelAndEpoch():
     global recovering
     stub = federated_pb2_grpc.TrainerStub(backupServerChannel)
+    
+    try:
+        print("Recovering", recovering)
+        if recovering == 1:
+            response = stub.ReceiveModel(federated_pb2.Request())
+            f = open(getMountedPath(optimModelPath), "wb")
+            decode = base64.b64decode(response.model)
+            f.write(decode)
+            f.close()
+            print("Epoch number received = ", response.epoch)
+            writeIntegerToFile(response.epoch)
+        #this call is being used by backup to identify if primary is up or not
+        response = stub.CheckIfPrimaryUp(federated_pb2.PingRequest(req = str(recovering)))
+        recovering = 0
+    except Exception as e:
+        print(e)
+        print("Primary not able to connect to backup server")
+
+def pingBackupServer():
     while(1):
-        try:
-            print("Recovering", recovering)
-            #this call is being used by backup to identify if primary is up or not
-            response = stub.CheckIfPrimaryUp(federated_pb2.PingRequest(req = str(recovering)))
-            recovering = 0
-        except Exception:
-            recovering = 0
-            print("Happens")
+        fetchingModelAndEpoch()
         time.sleep(1)
 
 #######################################################################
@@ -222,7 +251,7 @@ def handler(signum, frame):
     if isRunningAsPrimaryServer == 0:
         print("Start running as Primary server")
         isRunningAsPrimaryServer = 1
-        run()
+        run(readIntegerFromFile())
     else:
         print("Start running as Backup server")
         isRunningAsPrimaryServer = 0
@@ -239,7 +268,15 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
         decode = base64.b64decode(request.model)
         f.write(decode)
         f.close()
+        writeIntegerToFile(request.epoch)
         return federated_pb2.SendModelReply(reply = "success")
+
+    def ReceiveModel(self,request,context):
+        f=open(getMountedPath(optimModelPath), "rb")
+        encode=base64.b64encode(f.read())
+        f.close()
+        print("Epoch number sent is ", readIntegerFromFile())
+        return federated_pb2.ReceiveModelResponse(model = encode, epoch = readIntegerFromFile())
 
     def CheckIfPrimaryUp(self, request, context):
         print("Ping received")
@@ -272,6 +309,7 @@ if __name__ == '__main__':
     parser.add_argument('--p', default='n', help='Is Primary?')
     parser.add_argument('--backupAddress', default='localhost', help='Backup Server address')
     parser.add_argument('--backupPort', default='8080', help='Backup Server Port')
+    parser.add_argument('--recover', default='n', help='Backup Server Port')
 
     args = parser.parse_args()
     if args.compressFlag == "Y": 
@@ -279,7 +317,7 @@ if __name__ == '__main__':
     print("Compression {} enabled".format(args.compressFlag))
     
     clients['localhost:50051'] = True
-    clients['localhost:50052'] = True
+    #clients['localhost:50052'] = True
     #clients.append('localhost:50053')
     #clients.append('localhost:50054')
 
@@ -288,14 +326,24 @@ if __name__ == '__main__':
         ConnectToBackupServer(args.backupAddress, args.backupPort)
         mountPoint = "Primary"
         Path(mountPoint).mkdir(parents=True, exist_ok=True)
+        if args.recover == 'n' and Path(getMountedPath(currentEpochPath)).is_file():
+            os.remove(getMountedPath(currentEpochPath))
+        if args.recover == 'y':
+            recovering = 1
+        while (recovering == 1):
+            fetchingModelAndEpoch()
         t = threading.Thread(target = pingBackupServer)
         t.start()
-        run()
+        run(readIntegerFromFile())
     else:
         print("Backup triggered")
         mountPoint = "Backup"
         Path(mountPoint).mkdir(parents=True, exist_ok=True)
         signal.signal(signal.SIGUSR1, handler)
+        if Path(getMountedPath(currentEpochPath)).is_file():
+            os.remove(getMountedPath(currentEpochPath))
+        if Path(getMountedPath(optimModelPath)).is_file():
+            os.remove(getMountedPath(optimModelPath))
         t = threading.Thread(target = CheckingIfPrimaryServerUp)
         t.start()
         serve(args.backupPort)

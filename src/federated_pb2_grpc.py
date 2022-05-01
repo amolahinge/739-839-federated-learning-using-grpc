@@ -34,6 +34,11 @@ class TrainerStub(object):
                 request_serializer=federated__pb2.PingRequest.SerializeToString,
                 response_deserializer=federated__pb2.PingResponse.FromString,
                 )
+        self.ReceiveModel = channel.unary_unary(
+                '/federated.Trainer/ReceiveModel',
+                request_serializer=federated__pb2.Request.SerializeToString,
+                response_deserializer=federated__pb2.ReceiveModelResponse.FromString,
+                )
 
 
 class TrainerServicer(object):
@@ -63,6 +68,12 @@ class TrainerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReceiveModel(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_TrainerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -85,6 +96,11 @@ def add_TrainerServicer_to_server(servicer, server):
                     servicer.CheckIfPrimaryUp,
                     request_deserializer=federated__pb2.PingRequest.FromString,
                     response_serializer=federated__pb2.PingResponse.SerializeToString,
+            ),
+            'ReceiveModel': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReceiveModel,
+                    request_deserializer=federated__pb2.Request.FromString,
+                    response_serializer=federated__pb2.ReceiveModelResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -161,5 +177,22 @@ class Trainer(object):
         return grpc.experimental.unary_unary(request, target, '/federated.Trainer/CheckIfPrimaryUp',
             federated__pb2.PingRequest.SerializeToString,
             federated__pb2.PingResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ReceiveModel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/federated.Trainer/ReceiveModel',
+            federated__pb2.Request.SerializeToString,
+            federated__pb2.ReceiveModelResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

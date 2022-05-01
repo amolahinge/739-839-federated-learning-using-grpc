@@ -26,6 +26,8 @@ service Trainer {
   rpc SendModel(SendModelRequest) returns (SendModelReply){}
   rpc HeartBeat(Request) returns (HeartBeatResponse) {}
   rpc CheckIfPrimaryUp(PingRequest) returns (PingResponse) {}
+
+  rpc ReceiveModel(Request) returns (ReceiveModelResponse) {}
 }
 
 message Request {}
@@ -39,6 +41,7 @@ message HeartBeatResponse
 message TrainRequest {
   int32 rank=1;
   int32 world=2;
+  int32 epoch=3;
 }
 
 // The response message containing the greetings
@@ -48,6 +51,7 @@ message TrainReply {
 
 message SendModelRequest{
   string model=1;
+  int32 epoch = 2;
 }
 
 message SendModelReply{
@@ -60,4 +64,9 @@ message PingRequest{
 
 message PingResponse {
   int32 value = 1;
+}
+
+message ReceiveModelResponse {
+  string model = 1;
+  int32 epoch = 2;
 }

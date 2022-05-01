@@ -14,11 +14,12 @@ address = "temp"
 
 class Trainer(federated_pb2_grpc.TrainerServicer):
     def StartTrain(self, request, context):
-        main.train(1,request.rank, request.world)
+        main.train(request.epoch, request.rank, request.world)
        # print(main.net)
         filePath = "./checkpoint/" + address + ".pth"
         f=open(filePath, "rb")
         encode=base64.b64encode(f.read())
+        f.close()
        # print(encode)
         return federated_pb2.TrainReply(message=encode)
     def SendModel(self,request,context):
