@@ -26,6 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 from models import *
 import time
 import os, signal
+from datetime import datetime
 
 
 channels={} #client - client channel
@@ -51,11 +52,15 @@ def getMountedPath(suffixPath):
 def trainThreadFunc(count, client, channel):
     stub = federated_pb2_grpc.TrainerStub(channel)
     try:
+        print("Starting train",datetime.now())
         response = stub.StartTrain(federated_pb2.TrainRequest(rank=count,world=len(clients)))
+        print("Completing train",datetime.now())
         model=base64.b64decode(response.message)
         f = open(getMountedPath("test_"+str(count)+".pth"),'wb')
         f.write(model)
         f.close()
+        print("Writing complete",datetime.now())
+
     except grpc.RpcError as e:
         status_code = e.code()
         #if grpc.StatusCode.UNAVAILABLE == status_code:
@@ -98,7 +103,7 @@ def checkClientStatus():
                 except grpc.RpcError as e:
                     status_code = e.code()
                     #print("GRPC Error", status_code)
-        print("Client status", clients)
+        # print("Client status", clients)
 
 def createChannel(client):
     if compressFlag:
@@ -117,8 +122,8 @@ def run():
     clientTracking = threading.Thread(target=checkClientStatus)
     clientTracking.start()
 
-    for epoch in range(20):
-        print("Starting epoch", epoch)
+    for epoch in range(1):
+        # print("Starting epoch", epoch)
         count=0
         # threads=[]        
         trainthreads=[]
@@ -127,7 +132,7 @@ def run():
             if clients[client]:
                 trainthreads.append(threading.Thread(target=trainThreadFunc, args=(count,client,channel)))
                 count = count + 1
-        print("Train thread count", count)
+        # print("Train thread count", count)
 
         for i in range(len(trainthreads)):
             trainthreads[i].start()
@@ -145,7 +150,7 @@ def run():
             if clients[client]:
                 sendThreads.append(threading.Thread(target=sendOptimizedModel, args=(client, channel)))
                 count = count + 1
-        print("Send updated model thread count", count)
+        # print("Send updated model thread count", count)
 
         for i in range(len(sendThreads)):
             sendThreads[i].start()
@@ -190,13 +195,13 @@ def pingBackupServer():
     stub = federated_pb2_grpc.TrainerStub(backupServerChannel)
     while(1):
         try:
-            print("Recovering", recovering)
+            # print("Recovering", recovering)
             #this call is being used by backup to identify if primary is up or not
             response = stub.CheckIfPrimaryUp(federated_pb2.PingRequest(req = str(recovering)))
             recovering = 0
         except Exception:
             recovering = 0
-            print("Happens")
+            # print("Happens")
         time.sleep(1)
 
 #######################################################################
@@ -242,7 +247,7 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
         return federated_pb2.SendModelReply(reply = "success")
 
     def CheckIfPrimaryUp(self, request, context):
-        print("Ping received")
+        # print("Ping received")
         global isPrimaryUp
         isPrimaryUp = 1
         # Check if primary is recovering and if backup server was running as primary or not
@@ -259,7 +264,7 @@ def CheckingIfPrimaryServerUp():
             isPrimaryUp = 0
             time.sleep(10)
         else:
-            print("Got to know primary server is down")
+            # print("Got to know primary server is down")
             os.kill(os.getpid(), signal.SIGUSR1)
             flag = False
 
