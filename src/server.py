@@ -284,7 +284,7 @@ if __name__ == '__main__':
     print("Compression {} enabled".format(args.compressFlag))
     
     clients['localhost:50051'] = True
-    clients['localhost:50052'] = True
+    # clients['localhost:50052'] = True
     #clients.append('localhost:50053')
     #clients.append('localhost:50054')
 

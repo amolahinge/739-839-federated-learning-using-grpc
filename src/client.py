@@ -8,6 +8,7 @@ import federated_pb2
 import federated_pb2_grpc
 import main
 import base64
+from datetime import datetime
 
 compressFlag = False
 address = "temp"
