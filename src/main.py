@@ -61,17 +61,17 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-# net = ResNet18()
+#net = ResNet18()
 # net = PreActResNet18()
-# net = GoogLeNet()
+#net = GoogLeNet()
 # net = DenseNet121()
 # net = ResNeXt29_2x64d()
 net = MobileNet()
 # net = MobileNetV2()
 # net = DPN92()
-# net = ShuffleNetG2()
+#net = ShuffleNetG2()
 # net = SENet18()
-# net = ShuffleNetV2(1)
+#net = ShuffleNetV2(1)
 # net = EfficientNetB0()
 # net = RegNetX_200MF()
 #net = SimpleDLA()
@@ -229,6 +229,8 @@ def test(epoch):
 
 
 for epoch in range(start_epoch, start_epoch+1):
+    if not os.path.isdir('checkpoint'):
+        os.mkdir('checkpoint')
     filePath = "./checkpoint/" + fileName + ".pth"
 
     state = {

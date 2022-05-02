@@ -26,7 +26,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 from models import *
 import time
 import os, signal
-
+import sys
+import pickle
+from datetime import datetime
 
 channels={} #client - client channel
 clients={} # client - active / inactive status
@@ -51,11 +53,23 @@ def getMountedPath(suffixPath):
 def trainThreadFunc(count, client, channel):
     stub = federated_pb2_grpc.TrainerStub(channel)
     try:
+        print("Starting train",datetime.now())
         response = stub.StartTrain(federated_pb2.TrainRequest(rank=count,world=len(clients)))
+        print("Got model",datetime.now())
+
+        print("pickle dump",len(pickle.dumps(response)))
+        print("response ",sys.getsizeof(response))
+        print("before compression",sys.getsizeof(response.message))
+
         model=base64.b64decode(response.message)
+        print("Decoding complete",datetime.now())
+
+        print("after compression",sys.getsizeof(model))
         f = open(getMountedPath("test_"+str(count)+".pth"),'wb')
         f.write(model)
         f.close()
+        print("File saved",datetime.now())
+
     except grpc.RpcError as e:
         status_code = e.code()
         #if grpc.StatusCode.UNAVAILABLE == status_code:
@@ -102,7 +116,7 @@ def checkClientStatus():
 
 def createChannel(client):
     if compressFlag:
-        return grpc.insecure_channel(client,options=options,compression=grpc.Compression.Gzip)
+        return grpc.insecure_channel(client,options=options,compression=grpc.Compression.Deflate)
     else:
         return grpc.insecure_channel(client,options=options)
 
@@ -117,7 +131,7 @@ def run():
     clientTracking = threading.Thread(target=checkClientStatus)
     clientTracking.start()
 
-    for epoch in range(20):
+    for epoch in range(1):
         print("Starting epoch", epoch)
         count=0
         # threads=[]        
@@ -279,11 +293,11 @@ if __name__ == '__main__':
     print("Compression {} enabled".format(args.compressFlag))
     
     clients['localhost:50051'] = True
-    clients['localhost:50052'] = True
+  #  clients['localhost:50052'] = True
     #clients.append('localhost:50053')
     #clients.append('localhost:50054')
 
-    if args.p == 'y':
+    if args.p != 'y':
         print("Primary triggered")
         ConnectToBackupServer(args.backupAddress, args.backupPort)
         mountPoint = "Primary"

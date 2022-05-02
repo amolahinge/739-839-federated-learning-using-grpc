@@ -8,17 +8,21 @@ import federated_pb2
 import federated_pb2_grpc
 import main
 import base64
-
+from datetime import datetime
 compressFlag = False
 address = "temp"
 
 class Trainer(federated_pb2_grpc.TrainerServicer):
     def StartTrain(self, request, context):
+        print("Starttrain",datetime.now())
         main.train(1,request.rank, request.world)
+        print("Complete train",datetime.now())
+
        # print(main.net)
         filePath = "./checkpoint/" + address + ".pth"
         f=open(filePath, "rb")
         encode=base64.b64encode(f.read())
+        print("Encode complete",datetime.now())
        # print(encode)
         return federated_pb2.TrainReply(message=encode)
     def SendModel(self,request,context):
@@ -40,7 +44,7 @@ def serve():
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),options = [
             ('grpc.max_send_message_length', 1024 * 1024 * 1024),
             ('grpc.max_receive_message_length', 1024 * 1024 * 1024)
-        ], compression=grpc.Compression.Gzip)
+        ], compression=grpc.Compression.Deflate)
     else:
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),options = [
             ('grpc.max_send_message_length', 1024 * 1024 * 1024),
