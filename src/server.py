@@ -38,6 +38,7 @@ isPrimaryUp = 1
 isRunningAsPrimaryServer = 0
 recovering = 0
 clientTracking = None
+stop_thread = False
 
 isPrimary = True
 options = [
@@ -91,8 +92,8 @@ def sendOptimizedModel(epoch, client, channel):        # TODO - With optimized m
 
 def checkClientStatus():
     #logic to check if we are able to re-establish connection with client
-    while(True):
-        time.sleep(1)
+    while(True and not stop_thread):
+        
         clients_copy = copy.copy(clients)
         for key in clients_copy.keys():
             #iterate over inactive clients only
@@ -113,6 +114,7 @@ def checkClientStatus():
                     status_code = e.code()
                     #print("GRPC Error", status_code)
         print("Client status", clients)
+        time.sleep(20)
 
 def createChannel(client):
     if compressFlag:
@@ -141,7 +143,7 @@ def run(initial):
             if clients[client]:
                 trainthreads.append(threading.Thread(target=trainThreadFunc, args=(epoch, count, client, channel)))
                 count = count + 1
-        print("Train thread count", count)
+        #print("Train thread count", count)
 
         for i in range(len(trainthreads)):
             trainthreads[i].start()
@@ -152,15 +154,17 @@ def run(initial):
         sendThreads=[]
 
         count = 0
+        print("Replicating Global Model to Backup server")
+
         if backupServerChannel is not None:
             sendOptimizedModel(epoch, None, backupServerChannel)
         
-
+        print("Sending Global Model to all Clients")
         for client,channel in channels.items():
             if clients[client]:
                 sendThreads.append(threading.Thread(target=sendOptimizedModel, args=(epoch, client, channel)))
                 count = count + 1
-        print("Send updated model thread count", count)
+        #print("Send updated model thread count", count)
 
         writeIntegerToFile(epoch)
 
@@ -207,7 +211,7 @@ def fetchingModelAndEpoch():
     stub = federated_pb2_grpc.TrainerStub(backupServerChannel)
     
     try:
-        print("Recovering", recovering)
+        #print("Recovering", recovering)
         if recovering == 1:
             response = stub.ReceiveModel(federated_pb2.Request())
             f = open(getMountedPath(optimModelPath), "wb")
@@ -220,13 +224,14 @@ def fetchingModelAndEpoch():
         response = stub.CheckIfPrimaryUp(federated_pb2.PingRequest(req = str(recovering)))
         recovering = 0
     except Exception as e:
-        print(e)
+        #print(e)
         print("Primary not able to connect to backup server")
 
 def pingBackupServer():
     while(1):
         fetchingModelAndEpoch()
-        time.sleep(1)
+        print("Heartbeat Sent")
+        time.sleep(3)
 
 #######################################################################
 
@@ -247,28 +252,32 @@ def serve(port):
 # Whenever the process is interrupted, this function is called
 def handler(signum, frame):
     global isRunningAsPrimaryServer
-    print("isRunningAsPrimaryServer :", isRunningAsPrimaryServer)
+    #print("isRunningAsPrimaryServer :", isRunningAsPrimaryServer)
     if isRunningAsPrimaryServer == 0:
-        print("Start running as Primary server")
+        print("Backup server started running as Primary")
         isRunningAsPrimaryServer = 1
         run(readIntegerFromFile())
     else:
-        print("Start running as Backup server")
+        print("Backup server started running as Backup again")
         isRunningAsPrimaryServer = 0
+        global stop_thread
         if clientTracking is not None:
-            clientTracking.terminate()
+            stop_thread = True
+            clientTracking.join()    # Thread not terminating
+        stop_thread = False
         t = threading.Thread(target = CheckingIfPrimaryServerUp)
         t.start()
         serve(args.backupPort)
 
 class Trainer(federated_pb2_grpc.TrainerServicer):
     def SendModel(self,request,context):
-        print("This function started running")
+        #print("This function started running")
         f = open(getMountedPath(optimModelPath), "wb")
         decode = base64.b64decode(request.model)
         f.write(decode)
         f.close()
         writeIntegerToFile(request.epoch)
+        print("Replicated Global Model")
         return federated_pb2.SendModelReply(reply = "success")
 
     def ReceiveModel(self,request,context):
@@ -279,11 +288,12 @@ class Trainer(federated_pb2_grpc.TrainerServicer):
         return federated_pb2.ReceiveModelResponse(model = encode, epoch = readIntegerFromFile())
 
     def CheckIfPrimaryUp(self, request, context):
-        print("Ping received")
+        print("Heartbeat Acknowledged")
         global isPrimaryUp
         isPrimaryUp = 1
         # Check if primary is recovering and if backup server was running as primary or not
         if(request.req == "1" and isRunningAsPrimaryServer == 1):
+            print()
             print("The backup server was running as Primary server. Therefore switching")
             os.kill(os.getpid(), signal.SIGUSR1)
         return federated_pb2.PingResponse(value = 1)
@@ -294,7 +304,7 @@ def CheckingIfPrimaryServerUp():
     while(flag):
         if isPrimaryUp == 1:
             isPrimaryUp = 0
-            time.sleep(10)
+            time.sleep(8)
         else:
             print("Got to know primary server is down")
             os.kill(os.getpid(), signal.SIGUSR1)
@@ -317,7 +327,7 @@ if __name__ == '__main__':
     print("Compression {} enabled".format(args.compressFlag))
     
     clients['localhost:50051'] = True
-    #clients['localhost:50052'] = True
+    clients['localhost:50052'] = True
     #clients.append('localhost:50053')
     #clients.append('localhost:50054')
 

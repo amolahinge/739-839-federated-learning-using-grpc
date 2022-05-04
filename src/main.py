@@ -139,24 +139,28 @@ def train(epoch,rank,world):
     total = 0
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=False, num_workers=0)
     count=0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
-        count= (count+1)%world
-        if not count == rank:
-            continue
-        inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
-        outputs = net(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
+    try:
+        for batch_idx, (inputs, targets) in enumerate(trainloader):
+            count= (count+1)%world
+            if not count == rank:
+                continue
+            inputs, targets = inputs.to(device), targets.to(device)
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
 
-        train_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Epoch: ' + str(epoch) + ' Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            progress_bar(batch_idx, len(trainloader), 'Epoch: ' + str(epoch) + ' Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                        % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+    except:
+        print("\nInterrupt received from server. Restarting epoch\n")
+                    
     state = {
         'net': net.state_dict(),
         'acc': 1,
@@ -229,6 +233,20 @@ def test(epoch):
 
 
 for epoch in range(start_epoch, start_epoch+1):
-    train(epoch)
-    test(epoch)
-    scheduler.step()
+    if not os.path.isdir('checkpoint'):
+        os.mkdir('checkpoint')
+    filePath = "./checkpoint/" + fileName + ".pth"
+
+    state = {
+        'net': net.state_dict(),
+        'acc': 1,
+        'epoch': epoch,
+    }
+    torch.save(state, filePath)
+    # train(epoch)
+    # test(epoch)
+    # scheduler.step()
+#for epoch in range(start_epoch, start_epoch+1):
+#    train(epoch)
+#    test(epoch)
+#    scheduler.step()
