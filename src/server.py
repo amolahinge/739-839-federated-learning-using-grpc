@@ -197,7 +197,13 @@ def allreduce():
         'acc': 1,
         'epoch': 1,
     }
-    torch.save(state, getMountedPath(optimModelPath))
+    path=getMountedPath(optimModelPath)
+    tempPath=mountPoint+"/optimModel.tmp"
+
+    torch.save(state, tempPath)
+    #atomic move
+    os.system("mv "+tempPath+" "+path)
+    #atomic move end
 
 #######################################################################
 # Functions related to Primary server only
@@ -336,6 +342,7 @@ if __name__ == '__main__':
         ConnectToBackupServer(args.backupAddress, args.backupPort)
         mountPoint = "Primary"
         Path(mountPoint).mkdir(parents=True, exist_ok=True)
+        os.system("rm -rf ./Primary/*.tmp")
         if args.recover == 'n' and Path(getMountedPath(currentEpochPath)).is_file():
             os.remove(getMountedPath(currentEpochPath))
         if args.recover == 'y':
@@ -348,6 +355,7 @@ if __name__ == '__main__':
     else:
         print("Backup triggered")
         mountPoint = "Backup"
+        os.system("rm -rf ./Backup/*.tmp")
         Path(mountPoint).mkdir(parents=True, exist_ok=True)
         signal.signal(signal.SIGUSR1, handler)
         if Path(getMountedPath(currentEpochPath)).is_file():
